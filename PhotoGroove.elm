@@ -6,7 +6,7 @@ import Array exposing (Array)
 import Random
 import Http
 import Html.Attributes as Attr exposing (id, class, classList, src, name, max, type_, title)
-import Json.Decode exposing (string, int, list, Decoder, at)
+import Json.Decode exposing (string, int, list, Decoder, at, Value)
 import Json.Decode.Pipeline exposing (decode, required, optional)
 
 
@@ -41,6 +41,7 @@ view model =
         , button
             [ onClick SurpriseMe ]
             [ text "Surprise Me!" ]
+        , div [ class "status" ] [ text model.status ]
         , div [ class "filters" ]
             [ viewFilter "Hue" SetHue model.hue
             , viewFilter "Ripple" SetRipple model.ripple
@@ -104,6 +105,8 @@ sizeToString size =
 
 port setFilters : FilterOptions -> Cmd msg
 
+port statusChanges : (String -> msg) -> Sub msg
+
 type alias FilterOptions =
     { url : String
     , filters : List { name : String, amount : Float }
@@ -118,6 +121,7 @@ type alias Photo =
 
 type alias Model =
     { photos : List Photo
+    , status : String
     , selectedUrl : Maybe String
     , loadingError : Maybe String
     , chosenSize : ThumbnailSize
@@ -130,6 +134,7 @@ type alias Model =
 initialModel : Model
 initialModel =
     { photos = []
+    , status = ""
     , selectedUrl = Nothing
     , loadingError = Nothing
     , chosenSize = Medium
@@ -157,6 +162,7 @@ getPhotoUrl index =
 type Msg
     = SelectByUrl String
     | SelectByIndex Int
+    | SetStatus String
     | SurpriseMe
     | SetSize ThumbnailSize
     | LoadPhotos (Result Http.Error (List Photo))
@@ -186,6 +192,9 @@ update msg model =
 
         SelectByUrl selectedurl ->
             applyFilters { model | selectedUrl = Just selectedurl }
+
+        SetStatus status ->
+            ( { model | status = status }, Cmd.none )
 
         SurpriseMe ->
             let
@@ -259,14 +268,23 @@ viewOrError model =
                 ]
 
 
-main : Program Never Model Msg
+main : Program Float Model Msg
 main =
-    Html.program
-        { init = ( initialModel, initialCmd )
+    Html.programWithFlags
+        { init = init
         , view = viewOrError
         , update = update
-        , subscriptions = (\_ -> Sub.none)
+        , subscriptions = \_ -> statusChanges SetStatus
         }
+
+init : Float -> ( Model, Cmd Msg )
+init flags =
+    let
+        status =
+            "Initializing Pasta v" ++ toString flags
+    in
+        ( { initialModel | status = status }, initialCmd )
+
 
 paperSlider : List (Attribute msg) -> List (Html msg) -> Html msg
 paperSlider =
